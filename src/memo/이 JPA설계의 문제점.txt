@@ -1,0 +1,12 @@
+현재 도메인의 JPA 설계의 문제점 : 애플리케이션의 객체 지향성을 떨어 뜨리고 있다. 정확히는 객체의 자유로운 그래프 탐색이 안되고 있다. 
+지금 이 코드는 애플리케이션 코드를 관계형 DB에 맞춰서 설계한 것으로, JPA의 철학을 정면 위반하고 있다.(왜냐하면 테이블의 FK를 객체에 그대로 가져 오고 있다)
+
+ex) 현재 설계 기준
+Order order = entityManager.find(Order.class, 1L);
+Long memberId = order.getMemberId(); // Order에 연관된 Member 객체를 탐색하려고 하면 Order에 정의된 memberId를 추출해서 아래에서 다시 find를 해야 한다. 
+Member memeber = entityManager.find(Member.class, memerId);
+-> 객체 지향적이라면 Order에서 memberId가 아니라 Order 객체 내에 Member 객체 필드가 있어서 getMember()로 찾는 것이 객체 지향의 객체의 자유로운 그래프 탐색이다. 
+
+JPA 소개 부분에서 다루웠떤 패러다임 불일치 중에서 연관 관계의 불일치에서 오는 문제이다.
+다음 시간에는 연관 관계 매핑을 통해서 패러다임 불일치 중 연관 관계의 불일치 문제를 해결할 것이다.
+
