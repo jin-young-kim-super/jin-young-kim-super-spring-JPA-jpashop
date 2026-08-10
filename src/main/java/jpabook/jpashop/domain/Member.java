@@ -11,15 +11,20 @@ import jakarta.persistence.*;
 
 @Entity
 public class Member {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @Id @GeneratedValue
     @Column(name="MEMBER_ID")
     private Long id;
+
+    @Column(name = "USERNAME")
+
     private String name;
-    private String city;
-    private String street;
-    private String zipcode;
+    //@Column(name = "TEAM_ID")
+    //private Long teamId; // 참조가 아닌 외래키 사용!(RDB 설계에 맞춤)
+
+    // 연관 관계 매핑은 항상 DB입장에서 매핑을 해야 한다.
+    @ManyToOne // DB 입장에서는 Member 테이블에 대해 TEAM 테이블은 1의 관계
+    @JoinColumn(name="TEAM_ID") // DB에서는 연관 관계인 Member 테이블에서 TEAM 테이블의 어떤 키를 FK로 매핑할 지 정보가 필요
+    private Team team;          // DB에서는 반드시 多 테이블에 FK를 둔다.
 
     public Long getId() {
         return id;
@@ -37,27 +42,13 @@ public class Member {
         this.name = name;
     }
 
-    public String getCity() {
-        return city;
+    public Team getTeam() {
+        return team;
     }
 
-    public void setCity(String city) {
-        this.city = city;
-    }
-
-    public String getStreet() {
-        return street;
-    }
-
-    public void setStreet(String street) {
-        this.street = street;
-    }
-
-    public String getZipcode() {
-        return zipcode;
-    }
-
-    public void setZipcode(String zipcode) {
-        this.zipcode = zipcode;
+    public void setTeam(Team team) {
+        this.team = team;
     }
 }
+
+
