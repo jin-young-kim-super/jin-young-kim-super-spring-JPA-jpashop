@@ -1,0 +1,89 @@
+현재 Member와 Team 객체를 보자. Member는 Team 객체를 알고 싶으면, Member.getTeam()을 통해 알 수가 있다. 그러나 
+그 반대인 Team에서 Member를 알고 싶어도 Team 객체에 Member 객체를 참조하지 않고 있기 때문에 Team.getMember()가 불가능 하다. 
+
+그러나 Member와 Team 테이블을 보자. TEAM_ID라는 FK가 있으면 Member 테이블에서 조인을 하여 Team을 알 수가 있고, 반대로 Team에서도 TEAM_ID를 가지고 조인하여 
+Member를 알 수가 있다. 즉, 테이블은 FK를 가지고 있으면 둘 다 조회할 수가 있다(그래서, 테이블에서는 사실 방향이라는 개념이 없다)
+
+그래서 Team 객체에 List<Member> 객체를 참조해 줘야 객체도 양방향 조회가 가능하다. 
+※ 양방향 매핑 : 반대 방향으로 객체 그래프 탐색
+
+참조와 외래키의 가장 큰 차이(연관 관계 주인을 이해하는데 매우 중요)
+: 참조 방식은 서로를 알 기 위해서는 각 객체에 서로를 참조 시켜줘야 한다. 그러나 테이블은 어디 한 테이블에 FK만 넣어주면 둘 다 참조가 가능하다. 
+
+우리는 @OneToMany(mappedBy="team")을 통해, 반대 방향으로도 객체 탐색이 가능하게 되었다. 즉, 양방향 매핑이 가능하게 되었다. ;
+그러나 의문점이 있다. Member 객체에는 그냥 @ManyToOne만 해줬는데, 왜 양방향 매핑을 하기 위해서는 Team 객체에서 mappedBy를
+해줘야 하는 거지??라고..
+-> mappedBy는 연관 관계의 주인과 관련된 개념이다.(JPA에서 가장 어려운 부분 : 객체와 테이블 간에 연관관계를 맺는 차이를 모르고 배우면 존나 어려움)
+
+객체의 양방향 연관 관계
+・Member에서 Team을 조회 - Team 객체 1개(1개의 단방향)
+・Team에서 Member를 조회 - List<Member> 객체 1개(1개의 단방향)
+-> 객체의 양방향은 사실 본질적으로 양방향 관계가 아니라 참조를 통해 2개의 단방향을 만든 것이다.
+
+
+테이블의 양방향 연관 관계
+・Member <-> Team - TEAM_ID라는 FK 하나만으로 양방향 연관 관계를 생성
+(FK 하나로 조인을 통해 양방향 참조가 가능)
+
+
+
+연관 관계의 주인
+위에서 많이 언급했듯이, 테이블 입장에서는 FK 하나만 있으면 양방향 조회가 가능하다.
+그말은 양방향 객체 관계인 객체에서 즉, 만약 Member가 Team을 변경/등록하여도 【 Member 테이블의 TEAM_ID(FK)만 변경/등록하면 된다는 이야기이다.】(연관 관계 주인의 탄생 배경)
+그런데 이러한 DB의 속성 떄문에 애플리케이션 코드를 보고, 자동으로 SQL문을 생성하여 DB에 데이터를 저장하는 JPA입장에서는 아래 케이스에 대해서 매우 심각한 고민을 하게 된다.
+
+가정) 개발자가 Member 객체에서 Team 객체를 변경/등록한다.
+
+케이스 1 : Member 객체 내에서 Team 객체만을 변경/등록하는 케이스
+Member member = new Member();
+member.setTeam(teamA);
+JPA : "어? Member 객체 내에서 teamA로 변경했네? 그럼 Member 테이블의 team_id를 teamA로 변경하면 되겠네?" "어? 근데 잠깐 위 코드만 보면 teamA 객체에서는 member를 설정하고 있지 않네?"
+-> JPA는 대체 Member 객체와 Team 객체 중 어느 것을 신뢰하고 Member 테이블의 FK값을 바꿔야 할 지 모른다.
+
+케이스 2 : Team 객체 내에서 Member 객체만을 변경/등록하는 케이스
+Team teamA =  new Team();
+teamA.getMembers().add(member);
+JPA : "어? Team 객체 내에서 member를 등록했네? 그럼 Member 테이블의 team_id를 teamA로 변경하면 되겠네?" "어? 근데 잠깐 위 코드만 보면 MEmber 객체에서는 teamA를 설정하고 있지 않네?"
+-> JPA는 대체 Member 객체와 Team 객체 중 어느 것을 신뢰하고 Member 테이블의 FK값을 바꿔야 할 지 모른다.
+
+
+케이스 3 : Member, Team 객체에서 서로 객체를 변경/등록하는 케이스
+
+Team teamA = new Team();
+Team teamB = new Team();
+
+Member member = new Member();
+member.setTeam(teamA);
+
+teamB.getMembers().add(member);
+
+em.persist(teamA);
+em.persist(teamB);
+em.persist(member);
+JPA : "어? Member의 FK를 세팅하려고 보니깐, Member 객체에는 teamA로 세팅돼 있고, 근데 teamA 객체에는 Member가 세팅이 안 돼 있네??", "반대로 Member 객체가 teamB 객체에는 세팅이 돼 있네?"
+-> JPA는 MEmber 테입르의 FK을 대체 어느 객체를 기준으로 갱신해야 할지 모른다.
+
+※즉, DB는 양방향 관계일 때 Member 테이블의 FK 하나만을 갱신하면 되는 특성을 가지지만, 객체의 양방향 관계는 2개의 방향을 가지고 있기 때문에 JPA는 대체 어느 객체를 기준으로 FK를 갱신시켜야 할지 모른다.
+그래서 JPA는 객체가 양방향 관계일 때 어느 객체를 기준으로 FK를 업데이트 시킬 지 정하자는 룰을 설정을 했다. 그게 바로 그 어려운 연관 관계 주인 개념이다.
+
+연관 관계 주인 규칙
+1. 객체의 두 관계 중 하나만을 연관 관계 주인으로 지정
+-> FK가 있는 객체를 주인으로 정한다(영한이 기준!!!)
+왜냐하면 만약 Team 객체를 주인으로 해서, Member를 업데이트하는 경우 DB에서는 Member 테이블에 업데이트 쿼리가 날라가버린다.
+Team 객체를 업데이트했는데 DB에는 Member 테이블이 업데이트 되니깐 개발자 입장에서는 매우매우 헷갈린다.
+그리고 나중에 배울 것이지만 성능 이슈도 있다.
+
+2. 연관 관계 주인인 객체만이 외래 키를 관리(등록/수정)
+-> Member 객체 내의 Team 객체만을 보고 FK를 등록/수정한다.
+
+3. 주인이 아닌 객체는 읽기만 가능
+-> 그래서 team.getMEmbers().add(member)를 해도 DB 상에는 아무런 변화 x
+
+4. 주인은 mappedBY 사용 x
+
+5. 주인이 아니면 mappedBy 사용
+
+
+
+
+
