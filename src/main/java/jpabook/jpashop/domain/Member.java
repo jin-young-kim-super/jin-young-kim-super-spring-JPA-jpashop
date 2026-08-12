@@ -46,8 +46,14 @@ public class Member {
         return team;
     }
 
-    public void setTeam(Team team) {
+    public void changeTeam(Team team) {
+
         this.team = team;
+        /**
+         * 영한이 실무 팁 : Team.getMembers().add(member)이 부분은 연관 관계 주인 객체에서 편의 메서드 작성을 해 놓는다
+         * -> 인간은 반드시 Team.getMembers().add(member)를 까먹는다. 그 실수를 방지하게 위해 이렇게 편의 메서드를 만들어 놓는 걸 추천
+         */
+        team.getMembers().add(this);
     }
 }
 

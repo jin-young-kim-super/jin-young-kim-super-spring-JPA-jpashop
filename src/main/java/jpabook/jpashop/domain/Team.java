@@ -36,4 +36,14 @@ public class Team {
     public List<Member> getMembers() {
         return members;
     }
+
+    /**
+     * changeMember()에서 하지 않아도, Team 객체에서 이렇게 addMember() 편의 메서드를 만들어 된다.
+     * -> 난 이게 개인적으로 좋다.왜냐하면 협업 시 JPA에 익숙하지 않은 개발자가 "어? 왜 Team 객체에는 Member 객체를 삽입하지 않지?"
+     * 라고 혼동할 수 있기에, JPA 로직에 Team.addMEmber(member)를 명시해 두는 게 개인적으로 더 좋다.
+     * (고로, 보통 팀에서 이 문제를 Member객체에서 편의 메서드를 작성할 거냐, Team 객체에서 편의 메서드를 작성할 거냐를 정한다고 한다)
+     */
+    public void addMember(Member member) {
+        this.members.add(member);
+    }
 }

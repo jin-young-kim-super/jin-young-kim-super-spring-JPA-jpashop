@@ -1,0 +1,60 @@
+ex)
+Team team = new Team()
+team.setName("teamA");
+entityManager.persist(team);
+
+Member member = new Member();
+meber.setname("memberA");
+member.setTeam(team); // 연관 관계 주인에서 Team을 등록해야 한다. 
+entityManager.persiste(member);
+
+entityManager.flush();
+entityManager.clear();
+
+entityManger.commit();
+
+저번 시간에 배웠듯이 양방향 매핑 시에는 연관 관계 주인에서 Team을 등록/변경해야 한다고 말했다. 
+그리고 Team.getMembers().add(member)를 해도 JPA는 이를 보지 않으므로, 이 코드를 봐도 Member 테이블의 FK값에는 아무런 영향이 없다. 
+그러나 JPA의 철학을 생각해 보자!! JPA는 애플리케이션 코드가 RDB 설계에 종속되지 않기 위해 탄생했다. 
+연관 관계 주인을 생각해서 Team.getMembers().add(member)을 하지 않는 것은 그 순간 이미 JPA, 즉 DB에 종속적이라는 것이다. 
+그래서 Team.getMembers().add(member)코드에서는 JPA가 아무런 일을 하지는 않지만, 애플리케이션 코드 레벨에서 생각하면 반드시 이 코드는 필요하다
+왜냐하면 Member 객체에만 Team 정보가 있고, 반대로 Team 객체에 해당 Member 객체가 없는 것은 순수 애플리케이션 객체 관계에서는 있을 수 없는 일이다.
+그리고 Team.getMembers().add(member)을 추가하지 않으면 치명적인 문제점이 두 개가 있다.
+
+ex)
+Team team = new Team()
+team.setName("teamA");
+entityManager.persist(team); // 1차 캐쉬 저장
+
+Member member = new Member();
+meber.setname("memberA");
+team.getMembers().add(member)
+member.setTeam(team); // 연관 관계 주인에서 Team을 등록해야 한다.
+entityManager.persiste(member); // 1차 캐쉬 저장
+
+// 이 부분을 주석 처리!!
+//entityManager.flush();
+//entityManager.clear();
+
+Team findTeam = entityManager.find(Team.class, team.getId()); // 1차 캐쉬에서 들고 옴
+/**
+* findTeam을 가지고 로직 코드 작성
+*/
+
+entityManger.commit();
+
+위 코드는 flush와 clear가 주석 처리 됐다. 즉, 영속성 컨텍스트 내의 1차 캐쉬가 살아 있는 상태이고, entityManager.find(Team.class, team.getId())를 하면 DB가 아니라 1차 캐쉬에서 team 객체를 가져온다.
+근데 바로 이게 문제이다. 우리가 기대하는 바는 findTeam.getMembers() 조회 시 당연히 해당되는 Member 객체가 조회가 돼야 하는데, 1차 캐쉬에서 Team 객체를 찾아 오기 때문에 Team 객체 내의 List<Member> 객체가 반환이
+안 된다. 이건 애플리케이션의 객체 지향성을 매우 크게 떨어 뜨린다. 만약 flush()가 살아 있따면 DB에 쿼리를 날리고, entityManager.find(Team.class, team.getId()) 시점에는 DB에서 JOIN을 통해서 Team 객체와 그와 매핑된
+Member 객체 리스트를 반환을 한다. 이러한 문제들로 인해서 연관 관계 주인이 아니더라도 애플리케이션 코드에는 반드시 Team.getMembers().add(member)을 적어 줘야 한다.
+그리고 테스트 코드 작성 시에도 문제가 발생을 한다. 만약 JPA에 의존하지 않고 이 로직을 테스트 코드 작성을 하게 되면 Team에서 LIst<Member> 객체가 조회가 되지 않기에 순수 자바 코드 테스트 코드 작성이 힘들다.
+
+
+양방행 매핑 전략
+양방향의 목적 : 역방향 조회!!!!
+실무 전략 : 절대 처음 설계할 떄는 양방향 매핑 절대 하지 말고, 단방향으로만 설계를 완료해라. 그리고 개발을 하면서 역방향 조회가 필요할 때에만 양방향 매핑을 해라
+-> 양방향 매핑은 사실 애플리케이션 코드 차원에서는 고민 거리만 많아지고,(연관 관게 주인, 편의 메서드 문제 등등)
+단방향으로만도 사실 JPA 설계는 다 된거나 다름이 없다.
+그리고 단방향 매핑 설계를 처음 잘 해두면 양방향 매핑은 쉽다(실제로 단방향 매핑을 양방향 매핑을 학습 과정에서 변환하는 과정에서
+과련 에노테이션만 넣었지, DB 설계를 바꾸거나 하지는 전혀 하지 않았다)
+
