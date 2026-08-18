@@ -1,0 +1,39 @@
+일대다(여기서 일 부분이 연관 관계 주인이며, 일 부분에서 다를 참조하고 있는 케이스)
+참고로, 일대다 관계는 JPA 스펙에 있으니 소개하는 거지, 실무에서는 절대 사용안 한다고 한다.
+왜내하면, Team 객체가 업데이트 될 떄마다 SQL문은 Member 테이블의 TEAM_ID 값을 업데이트하는 쿼리문이 생성이 된다. 
+이건 개발자 입장에서 굉장히 혼란스럽다. 
+
+※DB 입장에서 Team과 Member가 있을 떄 반드시 FK는 다인 Member 테이블에서 관리해야 한다. 
+그렇지 않으면, 만약 Member 레코드가 Member 테이블에 추가할 떄마다 Team 테이블에서 해당 Member 레코드의 ID값을 가지고 INSERT 쿼리문을 날려야 한다. 
+그래서 일 부분에 @OneToMany @JoinColumn(name="MEMBER_ID")를 하여도 DB 스키마 생성문에서는 Team 테이블이 아닌 Member 테이블에서 FK 설정을 한다. 
+
+ex) 일대다 관계의 문제점
+Member member = new Member();
+member.setUsername("memberA");
+em.persist(member); // INSERT 쿼리문 1
+
+Team team = new Team();
+team.setName("teamA");
+team.getMembers().add(member); 이 코드 떄문에 아래에서 UPDATE 쿼리문 1개가 불필요하게 생성된다. 게다가 Team 객체를 수정했는데, Member 테이블의 UPDATE 쿼리문이 생긴다.
+em.persist(team); // INSERT 쿼리문 1 + 【Member 테이블의 TEAM_ID 외래키 UPDATE 쿼리문】
+
+Q. 그럼 일대일 관계는 어떻게 수정을 하면 되냐?
+A. 그렇다. 김영한 왈 "조금 객체성을 손해를 보더라도 운영의 편의성을 위해서 다대일 【양방향】을 사용하"라고 함. 비니지스 로직 상에서는 Member 객체에서 Team 객체를 조회하는 일이 거의 없더라고 이건 어쩔 수 없다고 함.
+ex)
+Member member = new Member();
+member.setUsername("memberA");
+em.persist(member); // INSERT 쿼리문 1
+
+Team team = new Team();
+team.setName("teamA");
+em.persist(team);
+
+member.setTeam(team); // INSERT 쿼리문 2
+
+@JoinColumn을 넣지 않으면 생기는 일
+-> 조인 테이블이라는 것이 생긴다. JPA는 예를 들어 Team 객체 안에 Member 객체를 참조하고 있고 @OneToMany만 설정을 하고 @JOinColumn을 설정을 하지 않으면
+Team 테이블을 뭘 기준으로 매핑을 해야 할 지 모르기 떄문에 Team 테이블의 ID값과 거게이 해당하는 Member 레코드의 Member ID값을 매핑해 놓은 조인 테이블을 자동 생성한다.
+그 조인 테이블을 가지고 Team 객체와 Member 객체를 매핑한다.
+※조인 테이블이 나쁘다는 의미는 전혀 아니다! 다만 조인 테이블이 필요 없는데 생성되는 것은 좋지 않다는 것을 말하는 것이다. 왜냐하면 아무래도 테이블을 하나 더 생성시키니 성능 면에서 문제가 있을 것이다.
+
+
