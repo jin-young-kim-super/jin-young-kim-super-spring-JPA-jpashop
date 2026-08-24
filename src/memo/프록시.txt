@@ -1,0 +1,134 @@
+Member : Team = 다 : 1 관계에서 MEmber 엔티티가 Team 엔티티를 단방향 참조하고 있다고 가정하다.
+
+비지니스 로직 상 Member와 그에 해당하는 Team을 조회한다고 해보자.
+entityManager.find(Member.class, member.getId) 시 JPA는 JOIN을 통해서 연관 관계인 Team도 조회를 해온다.
+그래서 요구사항에 따라 MEmber 객체와 Team 객체를 출력하면 된다.
+
+근데 만약에 요구사항이 Member 객체만을 출력해야 한다면 Team을 JOIN해올 필요가 없고, 오히려 성능을 떨어 뜨려 버린다.
+JPA는 이러한 상황을 위해 즉시 로딩/지연 로딩이라는 개념을 지원한다.
+
+특히 JPA의 지연 로딩을 이해하기 위해서는 Proxy라는 개념을 이해해야 한다.
+
+- 프록시 -
+em.find() vs em.getReference()
+
+・em.find : 데이터 베이스를 통해서 실제로 엔티티를 조회한다
+ex)
+MEmber member = new MEMber();
+member.setName("kim");
+em.persist(member);
+
+em.flush();
+em.clear();
+
+Member findMEmber = em.find(Member.class, member.getId());
+-> 이 시점에 Team 엔티티도 조인으로 SELECT돼서 실제 데이터 베이스값이 반환된다.
+
+
+・em.getReference : 데이터 베이스에 쿼리를 날리지 않고, 대신 가짜 객체를 생성한다.
+ex)
+MEmber member = new MEMber();
+member.setName("kim");
+em.persist(member);
+
+em.flush();
+em.clear();
+
+Member findMEmber = em.find(Member.class, member.getId());
+-> 이 시점에 SELECT 쿼리문은 절대 나가지 않고, 가짜 객체인 findMEmber(프록시 객체)가 생성돼서 반환된다.
+
+System.out.println("findMEmbrer.Id", findMember.getId());
+-> 프록시 객체를 【사용하는 시점】에 비로소 Team 엔티티와 함꼐 조인돼서 SELECT문이 실행이 된다.(이 자세한 과정은 아래 부분에서 설명함)
+
+프록시 객체의 생성 과정
+1. Member 객체를 상속 -> 참고로 프록시 객체도 영속성 컨텍스트에 의해 관리된다.
+2. ProxyMember 객체에 Member 객체를 참조값으로 가지고 있는다(=의존관계)
+3. ProxyMember.getId() 호출(즉, 프록시 객체 [사용]시점)
+3.1 ProxyMember.getId() 호출 시, JPA가 Member 엔티티가 영속성 컨텍스트에 없는 것을 확인하고 이떄 비로소 DB에 SELECT문을 날려서 1차 캐쉬에 저장을 한다.
+3.2 ProxcyMember 객체 내의 Member 객체의 참조값을 JPA가 1차 캐쉬를 보고 삽입해 준다.
+4. ProxyMembrer 객체내의 Member 객체를 가지고 프록시 객체 내부에서 Member.getId()를 실행한다.
+-> 즉, 프록시 객체 내의 Member 객체는 [실제 사용시]에 DB 쿼리문을 날려서 JPA가 초기화를 해준다.
+※참고로, 프록시 패턴의 JPA 인터페이스에서 강제하는 패턴이 아니라, Hibernate 구현체에서 사용하는 패턴임에 주의하자!!!!
+즉 구현체가 구현하기 나름에 따라서 프록시를 쓸 수도 있고 안 쓸 수도 있다.
+
+
+프록시 특징
+1.실제 엔티티(MEmber)를 상속 받아서 생성이 된다.
+-> 당연한 이야기이지만, 사용자는 이 객체가 프록시인지 아닌지 신경 안 써도 된다.
+왜냐하면 개발자 입장에서는 프록시 객체도 겉모습만 보면 똑같은 실제 엔티티이기 때문이다.
+
+2. 프록기 객체가 초기화 될 떄에는 프록시 객체가 새로운 객체로 바꿔 끼워지는 것이 절대 아니라,
+프록기 객체 내의 Member 객체가 초기화 되는 것이다.
+-> 이 지식이 중요한 이유는 프록시 객체와 일반 객체의 타입 비교 때문이다.
+ex)
+Member member1 = new MEmber();
+Member member2 = new MEmber();
+em.persiste(member1);
+em.persiste(member2);
+
+em.flush();
+em.clear();
+
+Memberm findMember1 = em.find(Member.class,member1.getiD);
+Memberm findMember2 = em.getReference(Member.class,member2.getiD);
+
+// 타입 체크
+System.out.println(findMEmber1.getClass == findMember2.getclass())
+-> false가 나온다 : 왜냐하면 findMember2의 타입인 Member를 상속받은 프록시 객체 타입이기 때문이다.
+그래서 애플리케이션에서 타입을 비교할 떄는 반드시 타입 체크를 해야 할 때는 getClass()가 아닌 instance of Member로 해야 한다.
+왜냐하면 해당 MEmber 객체가 프록시 Member 객체인지 순수 Member 객체인지 모르기 때문이다.
+
+
+3. 영속성 컨텍스트에 찾는 엔티티가 이미 있으면 getReference()를 해도 프록시 객체 아닌 실제 순수 Member 엔티티를 가져 온다.
+-> JPA에서는 중요한 원칙이 있다. 같은 트랜잭션 내에서 [같은 PK 값]으로 조회한 엔티티 2개 대해서 반드시 같은 엔티티를 반환한다( 두 객체를 == 비교시 true임을 보장)
+그게 굉장히 객체지향적이기 떄문이다. LIST에서 같은 key값으로 조회한 value가 다름은 있을 수가 없다.
+ex)
+Member member1 = new MEmber();
+em.persiste(member1);
+
+em.flush();
+em.clear();
+
+// em.find() 시점에 이미 member1.getId()에 해당하는 엔티티 존재
+Memberm findMember1 = em.find(Member.class,member1.getiD);
+Memberm findMember2 = em.getReference(Member.class,member1.getiD);
+
+-> 이떄 findMember2 객체는 Member의 프록시 객체일까? 답은 NO이다.
+생각을 해보자 이미 영속성 컨텍스트에는 member1.getId()에 해당하는 Member객체가 이미 존재한다.
+1. 굳이 getReference()라고 해서 굳이 프록시 객체를 만들 필요성이 없다.
+그래서 JPA에서는 같은 트랜잭션 내에서 이미 해당 PK에 해당 엔티티가 영속성 컨텍스트에 존재할 때에는 getReference() 호출 시에도 프록시를 만들지 않고,
+2. JPA에서 객체 지향성을 위하여 같은 PK값으로 조회한 엔티티에 대해서는 반드시 같은 객체임을 보장
+
+
+- JPA는 객체지향 성을 위하여 같은 트랜잭션 레벨 내에서 같은 PK값 조회 시 그 엔티티들이 반드시 같은 객체임을 보장한다 -
+즉 == 비교를 했을 때 반드시 true가 나옴을 보장한다.
+1. 객체 지향성을 위하여!!!
+2. 위에서도 언급했듯이 성능 낭비 방지를 위하여
+
+위 JPA의 보장에 의해 em.find() 시에도 프록시 객체가 반환될 수도 있다.
+ex)
+Member member1 = new MEmber();
+em.persiste(member1);
+
+em.flush();
+em.clear();
+
+Memberm refMember = em.getReference(Member.class,member1.getiD); // 포록시 객체
+Memberm findMember = em.find(Member.class,member1.getiD); // 프록기 객체
+-> findMember도 프록시 객체가 반환이 된다.
+그래서 refMember == findMEmber 비교시 반드시 true이다.
+그럼 왜 find() 시에도 프록시가 반환이 될까? 위에서도 언급을 하였지만 JPA는 객체 지향성을 떨어 뜨리지 않게 하기 위하여
+같은 PK로 조회한 객체끼리 ==  비교 시 반드시 true가 보장되도록 하기 위해서 위 경우에는
+em.find() 시에도 프록시 객체를 가져 온다.
+
+
+
+
+
+
+
+
+
+
+
+
