@@ -1,0 +1,28 @@
+일단 상속 관계 매핑이라는 관계가 별로 없는 것에 주의하자!!
+만약 DBA가 "앞으로 모든 테이블에 누가/언제 처음에 레코드 삽입했고 누가/언제 나중에 레코드를 수정했는지도 컬럼으로 넣었으면 좋겠따고 했다고 하자"
+그럼 모든 엔티티에 아래의 필드를 추가해야 한다.
+private String createdBy;
+private LocalDateTime createDate;
+private String lastModifiedBy;
+private LocalDateTime lastModifiedDate;
+
+@MappedSuperclass : 각 엔티티에서 공통되는 코드 중복이 싫지만 각 테이블에 그 공통되는 코드가 들어 가야 할 떄 쓰는 에노테이션이다.
+BaseEntity를 상속 받은 엔티티를 JPA에서 DDL 정의를 할 떄 아래와 같이 한다.
+ex)
+MEMBER 테이블
+create Table {
+
+    // 생략
+    private String createdBy;
+    private LocalDateTime createDate;
+    private String lastModifiedBy;
+    private LocalDateTime lastModifiedDate;
+    //새략
+}
+즉, 에노테이션 이름에 superclass가 있다고 해서 부모 테이블 등을 생성하는 것이 아니라 @MappedSuperclass 엔티티의 모든 필드를 BaseEntity를 상속 받은 엔티티에 자동 삽입하여
+DDL을 만들고 싶을 떄 사용하는 것이다.절대로 BaseEntity라는 테이블이 생성되는 것이 아니다.
+
+중요사항 : JPA에서는 엔티티가 extends 할 있는 것은 @Entity가 붙은 클래스 혹은 @MappedSuperclass가 붙은 클래스만 extends로 사용이 가능하다.
+
+
+
