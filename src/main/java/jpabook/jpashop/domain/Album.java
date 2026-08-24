@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 public class Album extends Item {
 
     private String artiest;
+    private String etc;
 
     public String getArtiest() {
         return artiest;
@@ -13,5 +14,13 @@ public class Album extends Item {
 
     public void setArtiest(String artiest) {
         this.artiest = artiest;
+    }
+
+    public String getEtc() {
+        return etc;
+    }
+
+    public void setEtc(String etc) {
+        this.etc = etc;
     }
 }

@@ -4,6 +4,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.EntityTransaction;
 import jakarta.persistence.Persistence;
+import jpabook.jpashop.domain.Book;
 import jpabook.jpashop.domain.Member;
 import jpabook.jpashop.domain.Movie;
 
@@ -19,11 +20,12 @@ public class JpaMain {
         transaction.begin(); // 트랜잭션 시작
 
         try {
-            Member member = new Member();
-            member.setName("user1");
-            member.setCreatedBy("kim");
-            member.setCreateDate(LocalDateTime.now());
-            entityManager.persist(member);
+
+            Book book = new Book();
+            book.setName("JPA 책");
+            book.setAuthor("김영한");
+
+            entityManager.persist(book);
 
             transaction.commit();
         } catch (Exception e) {
