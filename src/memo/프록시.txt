@@ -122,9 +122,97 @@ Memberm findMember = em.find(Member.class,member1.getiD); // 프록기 객체
 em.find() 시에도 프록시 객체를 가져 온다.
 
 
+저번 시간에 프록시에 원리에 대해 알아 보았다.
+이번 시간에는 즉시 로딩과 지연 로딩에 대해 알아 보겠다. 참고로 지연 로딩이야말로 프록시 기반의 기술이다.
+
+전제는 같아. Member : Team = 다 : 1이다.
+ex)
+class Member {
+// 생략
+
+    @ManyToOne(fetch=FectchType.LAZY) // 지연 로딩
+    @JoinColumn("TEAM_ID")
+    private Team team;
+
+//생략
+}
+
+Member member = new Member();
+em.persist(member);
+
+em.flush();
+em.clear();
+
+Member findMember = em.find(Member.class,member.getId());
+-> Member과 Team은 FK로 연관 관계로 맺어져 있지만 지연 로딩으로 인해서 JOIN을 통해
+Team 객체도 들고 오는 것이 아니라 Member 테이블 단일 SELECT로 MEmber 객체만 들고 온다.
+이때, Member 객체 내의 Team 객체에는 Team 객체를 상속받은 프록시 객체가 삽입된다. findMEmber.getTeam().getTeamName() 등을 통해 Team 객체를 사용할 때
+또 한 번의 SELECT를 통해 DB 쿼리를 실행하고 Team 객체를 영속성 컨텍스트에 저장한다.
+
+정리(이건 이론적인 것이고, 실무에서는 전부 다 지연로딩으로 발라야 한다. 그 이유는 아래의 다수의 JOIN쿼리문 발생과 N + 1문제 때문이다)
+1. 비지니스 로직 상 Member를 조회함과 동시에 Team도 같이 자주 조회하는 경우 => FetchType.EAGER(즉시 로딩)
+-> 2번의 SELECT문이 나가기에 쿼리 낭비이다.
+
+2. 비지니스 로직 상 Member를 주로 조회하고 Team은 그닥 조회하지 않는 경우 -> FetchType.LAZY(지연 로딩)
+-> Team을 사용할 때에만 쿼리 실행하여 성능 최적화.
 
 
+김영한의 실무 전략 : 실무에서는 절대 즉시 로딩을 사용하면 x, 지연 로딩만 사용!!!!!!
+-> 지연 로딩 설저응로 즉시 로딩 실행 시 생기는 아래의 문제들을 원천적으로 차단하고, 지연 로딩에 의한 문제를 fetch JOin 등으로 해결해 나가는 방식으로 사용을 한다.
+이유 1. JOIN 쿼리문이 너무 많아 진다.
+-> 지금이야 Member 테이블의 연관 관계가 Team 하나 밖에 없기 때문에 즉시 로딩 시, 1개의 JOIN 문이 생성이 된다. 근데 실무에서 연관 관계가 10,20개 정도가 되면 10,20개의 JOIN 쿼리문이 발생하며,
+어마어마한 성능 부하가 발생한다.(물론, 테이블이 몇 개 안 되는 서비스의 경우, 성능 고려를 크게 안 해도 되니 상관이 없겠지만 그런 서비스는 대부분 없다)
 
+이유 2. 즉시 로딩은 JPQL 실행 시 N+1 문제 발생시킨다(이 시점에서는 아직 자세히 안 배움)
+ex)
+Team teamA = new Team();
+em.persiste(teamA);
+Team teamB = new Team();
+em.persist(teamB);
+
+Member member1 = new Member();
+member1.setTeam(teamA);
+em.persist(member1);
+
+Member member2 = new Member();
+member2.setTeam(teamB);
+em.persist(member2);
+
+em.flush();
+em.clear();
+
+// JPQL 실행 : 모든 Member 객체 조회
+List<Member> members = em.createQuery("select m from Member m")
+                         .getResultList();
+
+JPQL 실행 순서
+1. "select m from Member m"JQPL이 순수 SQL로 변환 -> SELECT * FROM Member
+2. SELECT * FROM MEmber 실행하여 결과를 영속성 컨텍스트에 저장
+3. Team 객체가 즉시 로딩일 경우, JPA는 2의 결과로 얻은 영속성 컨텍스트에서 FK 값을 꺼내어 모든 Member 객체의 연관 관계인 Team  객체를 조회한다.
+ex)
+SELECT * FROM Team WHERE TEMA_ID = FK
+-> 이 쿼리를 실행하여 영속성 컨텍스트에 저장돼 있는 Member객체의 연관 객체인 Team 객체를 영속성 컨텍스트에 매핑을 해 놓는다.
+만약 영속성 컨텍스트에 100개의 Member 객체가 있다면 100개의 쿼리문이 실행이 된다.
+
+N + 1 문제 정리 : 1개의 JPQL문(select m from Member m) 실행 시 N개의 추가적인 쿼리문이 날라 가는 문제
+
+BUT!!! 지연 로딩을 하더라고 N + 1 문제가 발생할 수가 있다.
+ex)
+List<Member> members = em.createQuery("select m from Member m")
+                         .getResultList();
+// N + 1 발생
+foreach(member : members) {
+    System.out.println(member.getTeam().getname());
+}
+-> 즉 즉시 로딩뿐 아니라 지연 로딩에서도 N + 1 문제가 발생 가능
+
+N + 1 문제 해결 3가지 해결 방안(추후에 더 자세히 배운다. 나머지 2가지 방법은 추후에 자세히 다룸)
+1. fetch join
+List<Member> members = em.createQuery("select m from Member m fetch join Team m")
+                         .getResultList();
+-> 위와 같이 fetch join을 통해 JPQL 실행 시 Team까지 한 번에 다 들고 온다. 그러면 Member 객체와 그와 연관 관계인 Team이 영속성 컨텍스트 내에 전부 보존이 된다.
+그래서 지연 로딩 시에도 영속성 컨텍스트에 member 객체에 매핑되는 영속성 컨텍스트가 있으므로 JPA는 더이상 쿼리문을 실행시키지 않고 영속성 컨텍스트 내의 1차 캐시에서 Team을 조회한다.
+이 fetch join으로 인해 만약 즉시 로딩 설정 시에도 N + 1 문제를 해결할 수도 있고, 지연 로딩이라고 해도 해당 문제가 발생하지가 않는다.
 
 
 
