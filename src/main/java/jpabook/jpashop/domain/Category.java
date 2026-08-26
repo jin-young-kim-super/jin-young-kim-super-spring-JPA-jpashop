@@ -13,10 +13,12 @@ public class Category extends BaseEntity{
 
     private String name;
 
-    @ManyToOne
+    // 모든 연관 관계는 지연 로딩으로!!!!!
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="PARENT_ID")
     private Category parent;
 
+    // @xToMany : 디폴트가 지연 로딩
     @OneToMany(mappedBy = "parent")
     private List<Category> child = new ArrayList<>();
 

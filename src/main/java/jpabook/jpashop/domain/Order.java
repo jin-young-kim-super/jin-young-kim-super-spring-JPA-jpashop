@@ -15,15 +15,21 @@ public class Order extends BaseEntity{
     @Column(name = "ORDER_ID")
     private Long id;
 
-    @ManyToOne
+    // 모든 연관 관계는 지연 로딩으로1!
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "MEMBER_ID")
     private Member member;
 
-    @OneToOne
+    // 모든 연관 관계는 지연 로딩으로!!
+    // Order 저장 시 자동으로 Delivery 객체도 저장! Order 삭제 시 자동으로 Delivery 객체도 삭제!!
+    // -> 즉, Order(주문) 객체와 Delivery(배달)의 등록/삭제 라이프 사이클을 동기화
+    // Delivery를 자식 객체로 두고, 부모 객체인 Order 하나로 라이프 사이클을 관리하겠다는 뜻
+    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name="DELIVERY_ID")
     private Delivery delivery;
 
-    @OneToMany(mappedBy = "order")
+    // @xToMany : 디폴트가 지연 로딩
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
     private List<OrderItem> orderItems = new ArrayList<>();
 
     private LocalDateTime orderDate;
