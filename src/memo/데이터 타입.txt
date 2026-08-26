@@ -1,0 +1,113 @@
+JPA에서 데이터 타입은 크게 2가지이다.
+1. 엔티티 타입 : @Entity로 정의되며 "식별자를 가지고 있어서 내가 누구인지 추적할 수 있는 객체"
+ex)
+@Entity
+public class Member {
+
+    @Id
+    private Long id;
+
+    private String name;
+}
+
+DB에는 이렇게 저장됩니다.
+
+MEMBER
+----------------
+id     name
+1      Kim
+
+여기서 핵심은 id = 1이라는 식별자입니다.
+
+처음에는 Member(id=1, name="Kim")이었다가 이름을 member.setName("Lee")로 바꿔도 JPA는 **"아, 이건 id가 1인 바로 그 회원이구나"**라고 추적할 수 있습니다.
+
+그래서 트랜잭션이 끝날 때:
+UPDATE MEMBER
+SET name = 'Lee'
+WHERE id = 1; 같은 SQL을 만들어낼 수 있습니다.
+즉:
+Member
+  ↓
+@Id = 1
+  ↓
+"누구인지 식별 가능"
+  ↓
+값이 변경되어도 계속 추적 가능! 이게 엔티티 타입입니다.
+
+2. 값 타입 : 식별자가 없고, 엔티티에 소속된 값으로 취급되는 객체 == 자바 기본 객체 및 클래스
+ex)
+이번에는 회원의 주소를 생각해봅시다.
+
+@Embeddable
+public class Address {
+
+    private String city;
+    private String street;
+}
+그리고:
+@Entity
+public class Member {
+
+    @Id
+    private Long id;
+
+    private String name;
+
+    @Embedded
+    private Address address;
+}
+
+회원이:
+Member
+id = 1 // 식별자
+name = Kim
+address = 서울 강남구
+라고 해봅시다.
+
+주소가 변경되면?
+
+예를 들어:
+
+member.getAddress().setCity("부산")이라고 해봅시다.
+
+【JPA 입장】에서:
+
+Address
+  ↓
+식별자 없음
+  ↓
+"이 주소 객체가 누구인지" 추적하는 개념 없음
+→ 애초에 값 타입의 정의자체가 "엔티티에 소속된 객체"이기에 JPA는 식별자로 추적할 이유가 없다.
+
+JPA가 관리하는 것은:
+Member(id=1)
+    ↓
+address라는 값
+입니다.
+
+그래서 결국:
+
+UPDATE MEMBER
+SET city = '부산'
+WHERE id = 1;　처럼 회원의 값이 변경된 것으로 처리!!! 즉 값 타입 변경 시에는 식별자를 추적하여 WHERE에 설정하여 JPA가 UPDATE문을 자동 생성하지 않는다. 그 반면 엔티티 타입의 경우 식별자를 추적하여 데이터 변경의 경우 JPA는 반드시 WHERE절에
+식별자를 지정하여 UPDATE문을 생성한다.
+
+
+값 타입의 분류
+1. 기본값 타입 - 자바 기본 타입(int,double등), 래퍼 클래스(Integer,Long 등), String 타입
+-> 참고로 기본값 타입은 절대 공유되지 않는다.
+ex)
+int a = 10;
+int b = a;
+자바 기본 타입 a는 b=a 시 a의 값만 b에 넘겨 준다. 고로 a = 20로 도중에 데이터 변경을 해도 b가 20이 되지는 않는다.
+
+
+Integer a = new Integer(10);
+Integer b = a;
+-> b = a 시에 참조값이 넘어 가기는 하지만 래퍼 클래스 자체가 예를 들어 a.setValue(20)과 같이 도중에 데이터 변경을 허용하지 ㅇ낳는다.
+
+String 클래스는 데이터 변경이 가능하지만 그때마다 새로운 String 객체가 생성되므로 절대 공유가 되지 않는다.
+
+
+2. 임베디드 타입
+3. 컬렉션 값 타입
