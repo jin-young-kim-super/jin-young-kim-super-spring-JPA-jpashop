@@ -34,7 +34,7 @@ Member
   ↓
 값이 변경되어도 계속 추적 가능! 이게 엔티티 타입입니다.
 
-2. 값 타입 : 식별자가 없고, 엔티티에 소속된 값으로 취급되는 객체 == 자바 기본 객체 및 클래스
+2. 값 타입 : 식별자가 없고, 엔티티에 소속된 값으로 취급되는 객체 == 자바 기본 타입 및 클래스
 ex)
 이번에는 회원의 주소를 생각해봅시다.
 
@@ -92,7 +92,7 @@ SET city = '부산'
 WHERE id = 1;　처럼 회원의 값이 변경된 것으로 처리!!! 즉 값 타입 변경 시에는 식별자를 추적하여 WHERE에 설정하여 JPA가 UPDATE문을 자동 생성하지 않는다. 그 반면 엔티티 타입의 경우 식별자를 추적하여 데이터 변경의 경우 JPA는 반드시 WHERE절에
 식별자를 지정하여 UPDATE문을 생성한다.
 ※JPA가 값 타입에 대해 이러한 UPDATE문을 생성해 주는 덕분에 엉뚱한 엔티티에 대해 데이터 변경이 일어나지 않음을 보장한다(자세한 건 아래 내용을 읽으면 이해가 될 것!)
-
+-> JPA가 이렇게 데이터 타입 개념을 도입한 목적은 아래 "JPA가 데이터 타입을 만든 이유"에 잘 정리해둠
 
 값 타입의 분류
 1. 기본값 타입 - 자바 기본 타입(int,double등), 래퍼 클래스(Integer,Long 등), String 타입
@@ -109,6 +109,94 @@ Integer b = a;
 
 String 클래스는 데이터 변경이 가능하지만 그때마다 새로운 String 객체가 생성되므로 절대 공유가 되지 않는다.
 
-
 2. 임베디드 타입
+-> C언어에서의 구조체라고 생각하면 된다.
+임베디드 타입의 탄생 철학은 내 생각으로는 JPA의 "애플리케이션 코드의 객체 지향성" 보장을 위해서 인 것 같다.
+왜냐하면 하나의 엔티티에 Address 타입의 속성을 전부 하나하나 열거하는 것보다 관련 속성끼리 묶는 것이 가독성/재사용성에 좋고, 무엇보다도 메서드를 통해 "객체의 행동"을 만들 수 있게 해준다.
+DB에 반영될 떄는 당연히 Address의 속성 하나하나가 엔티티 테이블에 전부 들어 간다.
+ex)
+@Embedded
+private Address address; // 임베디드 타입에는 반드시 기본 생성자가 필요
+
 3. 컬렉션 값 타입
+
+
+- JPA가 데이터 타입을 만든 이유 -
+결론 : 아래의 3가지 성질을 보장하기 위함이다.
+
+●같은 트랜잭션 레벨 내에서의 객체 동일성 보장
+-> 여기서 지난 시간의 복습을 해보자. "JPA은 같은 트랜잭션 내에서 같은 식별자로 find()를 했을 경우, == 비교 시 반드시 true를 보장"한다.
+어 그럼 어떻게 JPA는 == 비교 시 항상 true임을 보장할까? 그 매커니즘이 뭐지? 그게 바로 엔티티 타입의 식별자이다.
+ex) 예를 들어 DB에 다음 데이터가 있다고 하자.
+MEMBER
+-----------------
+MEMBER_ID | USERNAME
+-----------------
+1         | Kim
+그리고 [같은 트랜잭션]에서 아래 코드를 실행해보자.
+ex)
+Member member1 = em.find(Member.class, 1L); // DB 쿼리 실행 후 1차 캐쉬에 저장
+Member member2 = em.find(Member.class, 1L); // DB 쿼리 실행하지 않고 1차 캐쉬에서 들고 옴
+System.out.println(member1 == member2); // true
+
+member1과 member2의 동일성을 어떻게 항상 보장할까? 바로 1차 캐쉬 내의 식별자이다.
+em.find(Member.class, 1L) 실행 시, PK값(식별자)를 key값으로, member1을 value값 형태로 1차 캐쉬에서 저장을 하고 있다.
+고로 em.find(Member.class, 1L) 실행 시, JPA는 식별자 1L인 Member 객체를 DB 조회를 하였는데, DB 테이블에 식별자가 1L인 Member 객체는 1차 캐쉬에 저장된
+member1 객체 딱 하나만 존재한다. 그래서 이러한 식별자 덕분에  DB에서 이상한 Member 객체를 조회하지 않고 1차 캐쉬에서 바로
+똑같은 Member 객체를 반환을 함으로써 == 비교시 항상 true임을 보장할 수 있었던 것이다.
+
+●Dirty Check
+-> 아래에서 일어나는 Dirty Checking도 엔티티 타입의 식별자으로 해당 엔티티 객체의 데이터 변경 상태를 snap shot 비교를 통해
+발생한다. 해당 엔티티에 Dirty Checking이 일어났는지 안 일어 났는지는 해당 엔티티 타입의 식별자로 엔티티의 상태를 지속 추적하면 된다.
+
+ex)
+Member ID = 1
+↓
+영속성 컨텍스트에서 독립적으로 관리
+↓
+Snapshot과 비교(Dirty Checking)
+↓
+변경 감지
+
+
+
+ex)
+@Entity
+public class Member extends BaseEntity{ // JPA 입장에서 Member는 식별자가 있는 @Entityt로 정의된 엔티티 타입
+    @Id @GeneratedValue
+    @Column(name="MEMBER_ID")
+    private Long id; // JPA입장에서는 식별자가 없는 값 타입
+
+    @Column(name="USERNAME")
+    private String username; // JPA 입장에서는 식별자가 없는 값 타입
+
+    @Embedded
+    private Period period; // JPA 입장에서는 식별자가 없는 값 타입(임베드디 타입)
+
+    @Embedded
+    private Address address; // JPA 입장에서는 식별자가 없는 값 타입(임베디드 타입)
+}
+
+
+- 값 타임 내부에 엔티티 타입이 들어 갈 수 있다 -
+ex)
+@Embeddable
+public class Address {
+
+    private String city;
+    private String street;
+    private String zipcode;
+
+    // 엔티티 타입
+    private Member member;
+}
+-> 위에서 설명했듯이 엔티티 타입은 식별자로 지속 추적이 가능하다.
+그래서 그 엔티티 타입의 식별자만 알고 있으면 객체 동일성 보장, Dirty Checking 등 어렵지 않게
+JPA의 특성을 유지 할 수가 있다.
+
+
+
+
+
+
+
