@@ -16,22 +16,20 @@ public class JpaMain {
 
         try {
 
-            Child child1 = new Child();
-            Child child2 = new Child();
+            Address address = new Address("city", "streetCode", "zipcode");
 
-            Parent parent = new Parent();
-            parent.addChild(child1);
-            parent.addChild(child2);
+            Member member1 = new Member();
+            member1.setUsername("member1");
+            member1.setHomeAddress(address); // 임베디드 타입
+            entityManager.persist(member1);
 
-            /**
-             * 3번의 persist를 해줘야 한다
-             * -> 개발자는 부모 중심으로 개발하고 있으니 영속성 관리는 Parent 쪽에서 해줬으면 좋겠다..ㅠㅠ
-             * 그래서 부모 쪽에 cascade=CascadeType.ALL을 설정하면 child1,2에 대해 persist안 해줘도 자동 영속 상태가 된다.
-             */
-            entityManager.persist(parent);
-            entityManager.persist(child1);
-            entityManager.persist(child2);
+            Member member2 = new Member();
+            member2.setUsername("member2");
+            member2.setHomeAddress(address); // 임베디드 타입
+            entityManager.persist(member2);
 
+            member1.getHomeAddress().setCity("newCity"); // member1의 주소 뿐아니라 member2의 주소도 같이 변경돼 버린다.(즉, 의도는 member1에 대한 update쿼리문 1개만 실행되야 하는데, 실제로는 member1,2둘다에 대해
+                                                         // update문이 각각 하나씩 실행된다.
 
             transaction.commit();
         } catch (Exception e) {

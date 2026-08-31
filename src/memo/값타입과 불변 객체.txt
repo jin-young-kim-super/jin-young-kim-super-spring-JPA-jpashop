@@ -1,0 +1,47 @@
+값 타입은 복잡한 객체 세상을 [단순]하고 [안전]하게 다루기 위해 나온 것이다. 
+
+코드에서 든 예시와 같이 임베디드 타입 같은 값 타입을 공유하게 되면 매우 위험하다.
+-> 값 타입에서는 예시와 같은 부작용이 발생하면 안된다. 왜냐하면 개발자의 의도는 member1에 대한 주소만 변경하고 싶은데 member2에 같이 변경되기 때문이다.
+만약에 member1,2 중 한 쪽을 변경했을 때 두 member 객체에 대해 변경, 즉 member1,2에 대해 UPDATE문 쿼리가 2개 실행되는 것을 의도한 거였다면 여기서는 값 타입이 아니라 반드시 Address를 엔티티 타입으로 사용해야 한다.
+우리가 지난 시간의 엔티티 타입의 정의를 살펴보자 "식별자를 통해 지속 추적을 하여 같은 트랜잭션 레벨 내에서 반드시 객체의 동일성"을 보장한다고 하였다.
+즉 member1,2 중 하나를 통해서 Address를 변경하게 되면 그 Address는 member1,2이든 같은 식별자를 가지게 되며, 그 식별자를 통해 항상 객체의 동일성이 보장되며 데이터 변경 시 또 식별자를 통해서 Dirty Checking을 통해
+최종적으로 Address [엔티티]에 대해 UPDATE문 쿼리가 딱 1번만 실행이 된다.
+
+Q. 그럼 임베디드 타입(값 타입)인 Address를 통해 데이터 변경 시 UPDATE문 쿼리가 2번이나 실행되고, 의도하지 않게 member2의 Address도 같이 변경되게 하는 값 타입의 근본적 문제는 무엇일까?
+A. 임베디드 타입, 즉 Address 객체의 참조값을 member1과 member2가 서로 공유를 하고 있기 때문이다.
+그러면 해결법이 떠오른다. 물론 Address를 엔티티 타입으로 변경하는 것도 괜찮지만, 강의자료를 보면 알겠지만 우리는 Address를 엔티티 타입의 값 타입으로 쓰고 싶은 것이지 그 어디에도 Address를 엔티티 타입으로 쓴다는 요구사항이 없다.
+그리고 무엇보다도 Address를 엔티티 타입으로 변경하면 Address 테이블이 따로 생성돼 버린다.
+그래서 값 타입을 유지하채 위 문제점을 해결하기 위한 방법이 바로 "값 타입을 복사해서 사용"하는 것이다.
+ex)
+Address address = new Address("city", "streetCode", "zipcode");
+
+Member member1 = new Member();
+member1.setUsername("member1");
+member1.setHomeAddress(address); // 임베디드 타입
+entityManager.persist(member1);
+
+Address CopyAddress = new Address(address.getCity(),address.getStreetCode(), address.getZipcode());1
+
+Member member2 = new Member();
+member2.setUsername("member2");
+member2.setHomeAddress(CopyAddress); // 복사된 임베디드 타입
+entityManager.persist(member2);
+
+member1.getHomeAddress().setCity("newCity"); // member1에 대한 UPDATE문 1개만 실행된다.
+
+정리
+1. 값 타입 객체를 공유하면 x
+2. 값 타입 객체 공유 시, 값 타입 객체를 복사해서 사용하자.
+
+
+
+개발자가 실수로 객체 타입 참조값 공유시키는 걸 막을 방법이 있을까?
+-> 자바 기본 타입의 경우, 반드시 값이 복사되는 것이지 참조값이 공유되는 건 아니라서 막을 수가 있지만...
+객체 타입의 경우 =만 있으면 참조값 공유를 컴파일 단계에서 막을 방법이 없다.
+그래서 나온 방법이 바로 "불변 객체"이다.
+
+불변 객체(immutable object)
+-> 생성자 시점에 값을 수정하고 setter를 없애거나 setter를 private로 만들어 외부에서 setter를 사용하지 못 하게 하여, 그 이후에는 값을 바꾸지 못하는 객체
+반드시, 값 타입 중 기본 타입을 제외한 값 타입(전부 객체임)은 불변 객체로 만들어야 한다.
+그리고 만약 Address를 변경해야 한다면 다시 new Address를 통해서 member 객체에 삽입하면 된다.
+

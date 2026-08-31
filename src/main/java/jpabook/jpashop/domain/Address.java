@@ -13,6 +13,16 @@ public class Address {
     private String street;
     private String zipcode;
 
+    public Address(String city, String street, String zipcode) {
+        this.city = city;
+        this.street = street;
+        this.zipcode = zipcode;
+    }
+
+    /**
+     * 임베디드 타입인 Address를 불변 객체로 만들기 위해서 setter를 없앰
+     */
+
     public String getCity() {
         return city;
     }
@@ -23,17 +33,5 @@ public class Address {
 
     public String getStreet() {
         return street;
-    }
-
-    public void setStreet(String street) {
-        this.street = street;
-    }
-
-    public String getZipcode() {
-        return zipcode;
-    }
-
-    public void setZipcode(String zipcode) {
-        this.zipcode = zipcode;
     }
 }
