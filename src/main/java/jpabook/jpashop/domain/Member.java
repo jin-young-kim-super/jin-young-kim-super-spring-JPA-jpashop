@@ -5,7 +5,9 @@ import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 public class Member extends BaseEntity{
@@ -61,6 +63,37 @@ public class Member extends BaseEntity{
      * 그리고 당연한 이야기이겠지만, 임베디드 타입에 null이 들어 가면 DB 쿼리 작성 시 그 안의 필드값도 전부 null로 세팅된다.
      */
 
+    @ElementCollection
+    @CollectionTable(
+            name="FAVORITE_FOODS",
+            joinColumns = @JoinColumn(name = "MEMBER_ID")
+    )
+    @Column(name = "FOOD_NAME") // 이 값타입 컬렉션 테이블의 컬럼명을 FOOD_NAME이라고 설정
+                                // List<Address>의 경우에는 Address 내의 필드명으로 컬럼명이 생성
+    private Set<String> favoriteFoods = new HashSet<>(); // Set<String> : 값 타입(String) 컬레션
+
+    @ElementCollection
+    @CollectionTable(
+            name="ADDRESS",
+            joinColumns = @JoinColumn(name = "MEMER_ID")
+    )
+    private List<Address> addressHistory = new ArrayList<>(); // List<Address> : 값 타입(Address) 컬렉션
+
+    public Set<String> getFavoriteFoods() {
+        return favoriteFoods;
+    }
+
+    public void setFavoriteFoods(Set<String> favoriteFoods) {
+        this.favoriteFoods = favoriteFoods;
+    }
+
+    public List<Address> getAddressHistory() {
+        return addressHistory;
+    }
+
+    public void setAddressHistory(List<Address> addressHistory) {
+        this.addressHistory = addressHistory;
+    }
 }
 
 

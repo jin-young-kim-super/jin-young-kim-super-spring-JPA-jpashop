@@ -1,0 +1,62 @@
+강의자료를 보면 알겠지만, Member 안의 컬렉션을 관계형 DB의 Member 테이블에 표현할 수 있는 방법이 기본적으로는 없다(요즘에는 컬렉션을 JSON으로 표현하기는 함)
+그래서 엔티티 안에 만약 값 타입 컬렉션이 존재하는 경우, JPA는 엔티티 객체는 아니지만 값 타입 컬렉션을 테이블로 만든다.
+ex)
+@Entity
+class Member {
+    // 생략
+
+    // 값 타입 컬렉션
+    Set<String> foods;
+    List<Address> address;
+
+}
+
+특징
+1. 값 타입 컬렉션 테이블에는 해당 테이블 전용 PK없음
+-> 강의 영상 13:55에서 값 타입 컬렉션에는 어떻게 레코드가 삽입되는지 확인!!!!(힌트 : 값 타입 컬렉션 테이블에 PK,FK가 하나도 없다)
+※아래에서도 설명을 하겠지만 이 방식은 값 타입 컬렉션 변경에서 매우 위험하고 사용하지 않면 안 되는 것이다!!!
+
+2. @Entity가 없어도 값 타입 컬렉션의 경우 테이블이 생성됨에 주의!!!
+
+
+
+Q. 값 타입은 반드시 immutable해야 한다고 했는데, 왜 여기에서는 new Address()처럼 새로운 객체를 생성해서 집어 넣지 않냐?
+A. String 자체가 변경 시, 새로운 String 객체를 생성하여 집어 넣어 주기에, 본질적으로 immutable하게 집어 넣어 주고 있다.
+
+// "치킨" -> "한식"
+findMember.getFavoriteFoods().remove("치킨"); // DELETE문 실행
+findMember.getFavoriteFoods().add("한식"); // INSERT문 실행
+
+
+Member member = new Member();
+member.setUsername("member1");
+member.setHomeAddress(new Address("homeCity","street","10000"));
+
+member.getFavoriteFoods().add("치킨");
+member.getFavoriteFoods().add("족발");
+
+member.getAddressHistory().add(new Address("old1","old1","old1"));
+member.getAddressHistory().add(new Address("old2","old2","old2"));
+
+entityManager.persist(member);
+
+entityManager.flush();
+entityManager.close();
+
+// 값 타입 컬렉션 변경 예제
+// 참고로 자바의 List는 remove시, equals(), HashCode()를 오버라이딩 하여, 참조값 비교가 아닌 "필드값" 비교를 통해
+// 같은 것이 있을 때 그걸 삭제한다. 그래서 값 타입 컬렉션 사용 시, 반드시 equals(), HashCode()를 오버라이딩 해 놓아야 한다.
+List<Address> findMemberAddressHistory = findMember.getAddressHistory();
+findMemberAddressHistory.remove(new Address("old1","old1","old1")); // List<Address> 값 컬렉션 테이블의 member.getId()에 해당 하는 모~~든 레코드를 지우는 DELETE문 실행
+findMemberAddressHistory.add(new Address("newCity","---","---")); // new Address("newCity","---","---")과 new Address("old2","old2","old2")를 값 컬렉션 테이블에 전부 새롭게 INSERT삽입된다.
+-> 즉 하나의 DELETE문을 통해 member.getId()에 해당하는 모든 값 타입 컬렉션를 DB에서 삭제하고 변경된 레코드를 값 컬렉션 레코드에 모두 새롭게 INSERT된다(2번의 INSERT문 실행)
+여기서 문제점은 new Address("newCity","---","---")라는 변경된 값에 대해서만 INSERT나 UPDATE를 하면 되지 DELETE문으로 일단 모두 한 번 지운 다음에 이미 저장되 있는 new Address("old2","old2","old2")을
+또 다시 저장을 한다는 점이다.
+
+원인 : 값 컬렉션 타입는 엔티티 타입이 아니기 때문에 식별자가 없다. 그래서 식별자를 통해서 new Address("old2","old2","old2")가
+DB에 있는지 없는지 추적이 불가능하다. 그래서 일단 member.getId()에 해당하는 레코드를 모두 다 DELETE한 다음에 새롭게 전부 INSERT할 수밖에 없는 것이다.
+
+해결책 : 값 컬렉션 테이블의 정의문을 "값 타입 컬렉션의 모든 컬럼을 묶어서 그걸 그 테이블의 고유 식별자로 만드는 것이다."
+-> 그렇게 하면 불필요한 INSERT문도 실행되지 않고,
+
+
