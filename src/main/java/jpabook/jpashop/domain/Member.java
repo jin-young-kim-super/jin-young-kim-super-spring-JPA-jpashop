@@ -72,12 +72,9 @@ public class Member extends BaseEntity{
                                 // List<Address>의 경우에는 Address 내의 필드명으로 컬럼명이 생성
     private Set<String> favoriteFoods = new HashSet<>(); // Set<String> : 값 타입(String) 컬레션
 
-    @ElementCollection
-    @CollectionTable(
-            name="ADDRESS",
-            joinColumns = @JoinColumn(name = "MEMER_ID")
-    )
-    private List<Address> addressHistory = new ArrayList<>(); // List<Address> : 값 타입(Address) 컬렉션
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "MEMBER_ID")
+    private List<AddressEntity> addressHistory = new ArrayList<>();
 
     public Set<String> getFavoriteFoods() {
         return favoriteFoods;
@@ -87,11 +84,11 @@ public class Member extends BaseEntity{
         this.favoriteFoods = favoriteFoods;
     }
 
-    public List<Address> getAddressHistory() {
+    public List<AddressEntity> getAddressHistory() {
         return addressHistory;
     }
 
-    public void setAddressHistory(List<Address> addressHistory) {
+    public void setAddressHistory(List<AddressEntity> addressHistory) {
         this.addressHistory = addressHistory;
     }
 }

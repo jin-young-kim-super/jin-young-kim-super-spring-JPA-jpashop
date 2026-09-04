@@ -1,0 +1,45 @@
+em.find(Member.class, member.getId())의 경우 특정 식별자에 대한 객체만 가져올 수가 있다. 
+그런데 만약에 나이가 18 이상인 모든 member 객체를 조회하려고 하면 em.find 방식으로는 한계가 있다. 
+즉, JPQL의 필요성은 기존 순수 SQL처럼 복잡한 쿼리문을 반드시 실무 개발에서 필요로 하기 떄문에 만들어 진 것이다. 
+
+JPQL vs SQL
+-> JPQL은 【엔티티(객체)】로 쿼리문을 작성한다!!!(JPQL == 객체 지향 SQL)
+
+JPA Criteria
+-> "select m From Member m Where m.username like '%kim%'" 순수 JPQL만으로 작성된 쿼리문이다.
+근데 보면 쿼리문이 단순한 하나의 문자열로 돼 있다. 그래서 만약에 순수 JPQL만으로 동적 쿼리를 작성하려고 하면
+if문과 또 "select m.."일부를 또 짜르고 띄워쓰기 신경 쓰면서 문자열 결합하고 등 동적 쿼리 작성에 불편함이 있다.
+그래서 이 JPQL의 동적 쿼리 작성 어려움에 있어서 탄생한 것이 Criteria이다.(김영한 왈 : 동적 쿼리 외에 다른 장점도 있다)
+
+장점 :
+1.자바 언어로 쿼리문을 작성하기에, 만약 자바 언어로 쿼리 작성 시 잘못 짜면 바로 컴파일 에러를 내준다.
+-> 순수 JPQL의 경우 "select mmmm From Member as m" 처럼 잘못 짜도, 문자열이기에 컴파일 에러 x
+
+단점 : 예시에서 본 Criteria는 간단한 예제라서 쉽게 보이지만, 쿼리문이 복잡해 지면 굉장히 가독성이 떨어 진다.
+-> 조금만 복잡해 지면, 어떤 SQL문이 최종적으로 생성되는 지 알수가 없어서 유지/보수가 어렵다.
+※김영한 왈 : Criteria는 김영한 본인도 유지/보수가 어려워서 실무에서 안 쓴다고 한다. 망한 스펙이라고까지 발언함
+
+
+Querydsl : Criteria의 단점 때문에 대체 사용하는 동적 쿼리 최적화된 오픈 소스(JPQL을 기반으로 한다)
+-> 강의자료에 Querydsl 사용 예시를 봐라!!! 어떤 SQL문이 작성되는지 한 눈에 알 수가 있다.그리고 이것 또한
+자바 코드로 작성하는 것이기 때문에 컴파일 타임 때 에러를 잡을 수가 있다.
+또한 함수화 하여 비슷한 동적 쿼리를 재사용 가능하다는 막대한 장점도 있다.
+
+
+Native SQL : JPA가 제공하는 SQL을 직접 사용하는 기능
+-> JPQL로 해결할 수 없는 특정 데이터 베이스에 의존적인 기능(ex. 오라클 CONNECT BY 등)
+ex)
+// 여기는 순수 SQL문
+String nativeQuery =
+    "SELECT ID, AGE FROM MEMBER WHERE NAME = kim";
+// 여기에서 Native SQL 사용 : 여기에서 Native SQL을 사용한다는 의미는 JPQL이 아닌 순수 SQL이지만 JPA의 도움을 받아서
+// 쿼리 실행의 결과를 객체로 자동 매핑되서 반환 받겠다는 뜻이다!!!
+LIst<Member> resultList =
+    em.createNativeQuery(NativeQuery,Member.class).getResultList();
+
+
+수동 플러시를 해야 할 경우 : JPA을 우회해서 DB 작업을 해야 할 떄!
+
+정리
+김영한 왈 : 본인은 95%는 [JPQL + Querydsl]를 사용하며, 나머지 5%, 진짜 JPQL + Queydsl로 안 되는 것들이 나오는데 그떄에는
+SpringJDBCTemplate으로 Native SQL을 사용한다고 한다"

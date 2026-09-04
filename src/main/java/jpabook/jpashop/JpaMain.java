@@ -1,6 +1,9 @@
 package jpabook.jpashop;
 
 import jakarta.persistence.*;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Root;
 import jpabook.jpashop.domain.*;
 
 import java.time.LocalDateTime;
@@ -16,50 +19,38 @@ public class JpaMain {
         transaction.begin(); // 트랜잭션 시작
 
         try {
+            // JPQL은 엔티티(객체)를 대상으로 쿼리문 작성
+//            List<Member> resultList = entityManager.createQuery(
+//                    "select m From Member m Where m.username like '%kim%'" //  select m : m이라는 [모든] 엔티티를 조회(순수 SQL에서는 SELECT *에 해당)
+//                    , Member.class
+//            ).getResultList();
+//
+//            for (Member member : resultList) {
+//                System.out.println("member = " + member);
+//            }
 
-            Member member = new Member();
-            member.setUsername("member1");
-            member.setHomeAddress(new Address("homeCity","street","10000"));
+            // JPA Criteria(참고로, JAVA 표준에서 제공하는 기능)
+            // -> 특징은 오로지 자바 언어로만 SQL 작성을 한다는 것이다.
+            // 아래 2줄은 Criteria 사용 준비 자바 표준 코드이다.
+            CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+            CriteriaQuery<Member> query = cb.createQuery(Member.class);
 
-            member.getFavoriteFoods().add("치킨");
-            member.getFavoriteFoods().add("족발");
+            // From 절 설정
+            Root<Member> m = query.from(Member.class);
 
-            member.getAddressHistory().add(new Address("old1","old1","old1"));
-            member.getAddressHistory().add(new Address("old2","old2","old2"));
+            // 쿼리 완성
+            CriteriaQuery<Member> sql = query.select(m).where(cb.equal(m.get("username"), "kim"));
 
-            // 값 타입 컬력센 저장 예제
-            // entityManager는 엔티티 타입만을 관리하기 때문에 값 타입 컬렉션은 persist하면 안 된다.
-            // 그리고 값 타입 컬렉션은 CasCadeType.ALL + OrphanRemoval = true의 기능을 가진다.
-            // -> member(부모)의 라이프 사이클과 값 타입 컬렉션의 라이프사이클이 같다.
-            entityManager.persist(member); // 2개의 값 타입 컬렉션 테이블에 대해 2개의 INSERT문 실행
+            // 쿼리 실행
+            List<Member> resultList = entityManager.createQuery(sql).getResultList();
+
+            for (Member member : resultList) {
+                System.out.println("member = " + member);
+            }
+
 
             entityManager.flush();
             entityManager.close();
-
-            // 값 타입 컬렉션 조회 예제
-            // SELECT * FROM Member WHERE member_id = ?? 가 실행
-            // -> 값 타입 컬렉션은 @..toMany와 같기 때문에 지연 로딩이 된다.
-            Member findMember = entityManager.find(Member.class, member.getId());
-
-            // 값 컬렉션 타입은 지연 로딩이므로 사용 시에 비로소 SELECT문 실행이 된다.
-            Set<String> favoriteFoods = findMember.getFavoriteFoods();
-            List<Address> addressHistory = findMember.getAddressHistory();
-
-            // 값 타입 컬렉션 변경 예제
-            // ex) HomeAddress의 city를 "homeCity" -> "newCity"로 변경하는 예제
-            //findMember.getHomeAddress().setCity("newCity"); // 잘못된 변경 예시 : 값 타입은 항상 immutable해야 한다
-            findMember.setHomeAddress(new Address("newCity","--","--")); // 값 타입은 항상 불변 객체로 새로 삽입
-
-            // "치킨" -> "한식"
-            Set<String> findFavoriteFoods = findMember.getFavoriteFoods();
-            findFavoriteFoods.remove("치킨"); // DELETE문 실행
-            findFavoriteFoods.add("한식"); // INSERT문 실행
-
-            // 참고로 자바의 List는 remove시, equals(), HashCode()를 오버라이딩 하여, 참조값 비교가 아닌 "필드값" 비교를 통해
-            // 같은 것이 있을 때 그걸 삭제한다. 그래서 값 타입 컬렉션 사용 시, 반드시 equals(), HashCode()를 오버라이딩 해 놓아야 한다.
-            List<Address> findMemberAddressHistory = findMember.getAddressHistory();
-            findMemberAddressHistory.remove(new Address("old1","old1","old1"));
-            findMemberAddressHistory.add(new Address("newCity","---","---"));
 
             transaction.commit();
         } catch (Exception e) {
